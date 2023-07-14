@@ -17,6 +17,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.google.android.material.snackbar.Snackbar
 import com.ipekkochisarli.booktrackerkotlin.databinding.ActivityDetailsBinding
+import java.io.ByteArrayOutputStream
 
 class DetailsActivity : AppCompatActivity() {
     private lateinit var binding : ActivityDetailsBinding
@@ -33,8 +34,36 @@ class DetailsActivity : AppCompatActivity() {
     }
 
     fun saveButtonClicked(view: View){
+        val bookName = binding.bookName.text.toString()
+        val bookAuthor = binding.authorName.text.toString()
+        val year = binding.dateText.text.toString()
 
-    }
+        if(selectedBitmap != null) {
+            val smallBitmap = makeSmallerBitmap(selectedBitmap!!, 300)
+            // to save images to db we need to convert it to byte array
+            val outputStream = ByteArrayOutputStream()
+            smallBitmap.compress(Bitmap.CompressFormat.PNG, 50, outputStream)
+            val byteArray = outputStream.toByteArray()
+            try{
+                // db
+                val database = this.openOrCreateDatabase("Books", MODE_PRIVATE, null)
+                database.execSQL("CREATE TABLE IF NOT EXISTS books (id INTEGER PRIMARY KEY, bookname VARCHAR, authorname VARCHAR, year VARCHAR, image BLOB)")
+                val sqlString = "INSERT INTO books (bookname, authorname, year, image) VALUES (?, ?, ?, ?)"
+                val statement = database.compileStatement(sqlString) // statement is used to insert data to db
+                statement.bindString(1, bookName)
+                statement.bindString(2, bookAuthor)
+                statement.bindString(3, year)
+                statement.bindBlob(4, byteArray)
+                statement.execute()
+            } catch(e : Exception){
+                e.printStackTrace()
+            }
+                val intent = Intent(this@DetailsActivity, MainActivity::class.java)
+                // use flag activity clear top -> clear all activities on top of main activity
+                intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                startActivity(intent)
+            }
+        }
 
     fun selectImageClicked(view: View){
         // permissions
@@ -118,5 +147,23 @@ class DetailsActivity : AppCompatActivity() {
             Toast.makeText(this, "Permission needed", Toast.LENGTH_LONG)
         }
         }
+    }
+    private fun makeSmallerBitmap(image: Bitmap, maximumSize: Int) : Bitmap{
+        var width = image.width
+        var height = image.height
+        val bitmapRatio : Double = width.toDouble() / height.toDouble()
+        if (bitmapRatio > 1){
+            // landscape image
+            width = maximumSize
+            val scaledHeight = width / bitmapRatio
+            height = scaledHeight.toInt()
+        } else {
+            // portrait image
+            height = maximumSize
+            val scaledWidth = height * bitmapRatio
+            width = scaledWidth.toInt()
+        }
+
+        return Bitmap.createScaledBitmap(image, width,height,true)
     }
 }
