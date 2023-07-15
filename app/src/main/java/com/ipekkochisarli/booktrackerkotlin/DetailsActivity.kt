@@ -3,7 +3,9 @@ package com.ipekkochisarli.booktrackerkotlin
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.database.sqlite.SQLiteDatabase
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
 import android.os.Build
 import androidx.appcompat.app.AppCompatActivity
@@ -25,12 +27,40 @@ class DetailsActivity : AppCompatActivity() {
     var selectedBitmap : Bitmap? = null
     // izinler string olarak donuyor
     private lateinit var permissionLauncher : ActivityResultLauncher<String>
+    private lateinit var database : SQLiteDatabase
     override fun onCreate(savedInstanceState: Bundle?) {
         binding = ActivityDetailsBinding.inflate(layoutInflater)
         super.onCreate(savedInstanceState)
         val view = binding.root
         setContentView(view)
+        database = this.openOrCreateDatabase("Books", MODE_PRIVATE, null)
         registerLauncher()
+        val intent = intent
+        val info = intent.getStringExtra("info")
+        if (info.equals("new")) {
+            binding.bookName.setText("")
+            binding.authorName.setText("")
+            binding.dateText.setText("")
+            binding.button.visibility = View.VISIBLE
+            binding.imageView.setImageResource(R.drawable.addbook)
+        } else {
+                binding.button.visibility = View.INVISIBLE
+                val selectedId = intent.getIntExtra("id", 1)
+                val cursor = database.rawQuery("SELECT * FROM books WHERE id = ?", arrayOf(selectedId.toString()))
+                val bookNameIx = cursor.getColumnIndex("bookname")
+                val authorNameIx = cursor.getColumnIndex("authorname")
+                val yearIx = cursor.getColumnIndex("year")
+                val imageIx = cursor.getColumnIndex("image")
+                while (cursor.moveToNext()) {
+                    binding.bookName.setText(cursor.getString(bookNameIx))
+                    binding.authorName.setText(cursor.getString(authorNameIx))
+                    binding.dateText.setText(cursor.getString(yearIx))
+                    val byteArray = cursor.getBlob(imageIx)
+                    val bitmap = BitmapFactory.decodeByteArray(byteArray, 0, byteArray.size)
+                    binding.imageView.setImageBitmap(bitmap)
+                }
+            cursor.close()
+        }
     }
 
     fun saveButtonClicked(view: View){
@@ -46,7 +76,6 @@ class DetailsActivity : AppCompatActivity() {
             val byteArray = outputStream.toByteArray()
             try{
                 // db
-                val database = this.openOrCreateDatabase("Books", MODE_PRIVATE, null)
                 database.execSQL("CREATE TABLE IF NOT EXISTS books (id INTEGER PRIMARY KEY, bookname VARCHAR, authorname VARCHAR, year VARCHAR, image BLOB)")
                 val sqlString = "INSERT INTO books (bookname, authorname, year, image) VALUES (?, ?, ?, ?)"
                 val statement = database.compileStatement(sqlString) // statement is used to insert data to db
